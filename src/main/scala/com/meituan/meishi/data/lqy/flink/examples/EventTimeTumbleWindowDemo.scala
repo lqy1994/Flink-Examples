@@ -13,7 +13,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment
 import org.apache.flink.streaming.api.functions.source.SourceFunction
 import org.apache.flink.streaming.api.functions.source.SourceFunction.SourceContext
 import org.apache.flink.streaming.api.watermark.Watermark
-import org.apache.flink.table.api.{TableEnvironment, TableSchema}
+import org.apache.flink.table.api.{EnvironmentSettings, TableEnvironment, TableSchema}
 import org.apache.flink.table.sinks.{CsvTableSink, TableSink}
 import org.apache.flink.table.sources.tsextractors.ExistingField
 import org.apache.flink.table.sources.wmstrategies.PreserveWatermarks
@@ -25,13 +25,13 @@ object SimpleDemo {
   def main(args: Array[String]): Unit = {
     // Streaming 环境
     val env = StreamExecutionEnvironment.getExecutionEnvironment
-//    val settings = EnvironmentSettings.newInstance()
-//      .useOldPlanner()
-//      .inStreamingMode()
-//    //          .withBuiltInCatalogName("default_catalog")
-//    //        .withBuiltInDatabaseName("default_database")
-//      .build()
-    val tEnv = TableEnvironment.getTableEnvironment(env)
+    val settings = EnvironmentSettings.newInstance()
+      .useOldPlanner()
+      .inStreamingMode()
+    //          .withBuiltInCatalogName("default_catalog")
+    //        .withBuiltInDatabaseName("default_database")
+      .build()
+    val tEnv = TableEnvironment.create(settings)
 
     // 设置EventTime
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
