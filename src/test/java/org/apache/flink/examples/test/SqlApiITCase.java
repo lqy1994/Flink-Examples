@@ -13,8 +13,6 @@ import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.io.jdbc.JDBCAppendTableSink;
 import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.runtime.state.StateBackend;
-import org.apache.flink.runtime.state.memory.MemoryStateBackend;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -22,11 +20,15 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.Types;
 import org.apache.flink.table.api.java.StreamTableEnvironment;
-import org.apache.flink.table.descriptors.*;
+import org.apache.flink.table.descriptors.Elasticsearch;
+import org.apache.flink.table.descriptors.Json;
+import org.apache.flink.table.descriptors.Kafka;
+import org.apache.flink.table.descriptors.Schema;
 import org.apache.flink.table.functions.ScalarFunction;
 import org.apache.flink.table.functions.TableFunction;
 import org.apache.flink.test.util.AbstractTestBase;
@@ -34,14 +36,18 @@ import org.apache.flink.types.Row;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
 import scala.Tuple2;
 import scala.Tuple3;
 import scala.Tuple4;
+import scala.collection.JavaConverters;
 import scala.collection.JavaConverters$;
+import scala.collection.Seq;
+import scala.concurrent.JavaConversions;
 import scala.util.Either;
 
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -54,17 +60,9 @@ public class SqlApiITCase extends AbstractTestBase {
     StreamExecutionEnvironment env;
     StreamTableEnvironment tEnv;
 
-    TemporaryFolder folder;
-    StateBackend stateBackend;
-
     @Before
     public void before() throws Exception {
-
-        folder = new TemporaryFolder();
-        stateBackend = new MemoryStateBackend();
-
         env = StreamExecutionEnvironment.getExecutionEnvironment();
-
         tEnv = StreamTableEnvironment.create(env);
 
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
@@ -92,10 +90,10 @@ public class SqlApiITCase extends AbstractTestBase {
         SeqHolder holder = new SeqHolder();
         //商品销售表数据
         Collection<Either<Tuple2<Object, Tuple4<Object, Object, String, String>>, Object>> itemData
-                = JavaConverters$.MODULE$.asJavaCollection(holder.itemData());
+                = JavaConverters.asJavaCollection(holder.itemData());
 
         DataStream<ItemData> itemStream = env
-                .addSource(new EventDataSource(itemData))
+                .addSource(new EventDataSource<Tuple4<Object, Object, String, String>>(itemData))
                 .returns(TypeInformation.of(new TypeHint<Tuple4<Object, Object, String, String>>() {
                 }))
                 .map(new MapFunction<Tuple4<Object, Object, String, String>, ItemData>() {
@@ -108,9 +106,9 @@ public class SqlApiITCase extends AbstractTestBase {
 
         //页面访问表
         Collection<Either<Tuple2<Object, Tuple3<Object, String, String>>, Object>> pageAccessData =
-                JavaConverters$.MODULE$.asJavaCollection(holder.pageAccessData());
-        SingleOutputStreamOperator pageAccessStream = env
-                .addSource(new EventDataSource(pageAccessData))
+                JavaConverters.asJavaCollection(holder.pageAccessData());
+        DataStream<PageAccess> pageAccessStream = env
+                .addSource(new EventDataSource<Tuple3<Object, String, String>>(pageAccessData))
                 .returns(TypeInformation.of(new TypeHint<Tuple3<Object, String, String>>() {
                 }))
                 .map(new MapFunction<Tuple3<Object, String, String>, PageAccess>() {
@@ -123,9 +121,9 @@ public class SqlApiITCase extends AbstractTestBase {
 
         //页面访问量表数据2
         Collection<Either<Tuple2<Object, Tuple3<Object, String, Object>>, Object>> pageAccessCount =
-                JavaConverters$.MODULE$.asJavaCollection(holder.pageAccessCountData());
-        SingleOutputStreamOperator pageAccessCountStream = env
-                .addSource(new EventDataSource(pageAccessCount))
+                JavaConverters.asJavaCollection(holder.pageAccessCountData());
+        DataStream<PageAccessCount> pageAccessCountStream = env
+                .addSource(new EventDataSource<Tuple3<Object, String, Object>>(pageAccessCount))
                 .returns(TypeInformation.of(new TypeHint<Tuple3<Object, String, Object>>() {
                 }))
                 .map(new MapFunction<Tuple3<Object, String, Object>, PageAccessCount>() {
@@ -139,9 +137,9 @@ public class SqlApiITCase extends AbstractTestBase {
 
         //页面访问表数据3
         Collection<Either<Tuple2<Object, Tuple3<Object, String, String>>, Object>> pageAccessSession =
-                JavaConverters$.MODULE$.asJavaCollection(holder.pageAccessSessionData());
-        SingleOutputStreamOperator pageAccessSessionStream = env
-                .addSource(new EventDataSource(pageAccessSession))
+                JavaConverters.asJavaCollection(holder.pageAccessSessionData());
+        DataStream<PageAccessSession> pageAccessSessionStream = env
+                .addSource(new EventDataSource<Tuple3<Object, String, String>>(pageAccessSession))
                 .returns(TypeInformation.of(new TypeHint<Tuple3<Object, String, String>>() {
                 }))
                 .map(new MapFunction<Tuple3<Object, String, String>, PageAccessSession>() {
@@ -377,7 +375,27 @@ public class SqlApiITCase extends AbstractTestBase {
                 .filter(t -> t.f0)
                 .map(t -> t.f1);
 
-        tEnv.registerDataStream("regionPv", regionPv, "region, winStart, winEnd, pv");
+//        SingleOutputStreamOperator<NewRegionPv> newRegionPv = regionPv.map(pv -> {
+//            NewRegionPv newPv = new NewRegionPv();
+//            newPv.setRegion(pv.getRegion());
+//            newPv.setWinEnd(pv.getWinStart().toLocalDateTime());
+//            newPv.setWinEnd(pv.getWinEnd().toLocalDateTime());
+//            newPv.setPv(pv.getPv());
+//            return newPv;
+//        });
+
+        SingleOutputStreamOperator<NewRegionPv> newRegionPv = regionPv.map(pv -> {
+            NewRegionPv newPv = new NewRegionPv();
+            newPv.setRegion(pv.getRegion());
+            newPv.setWinEnd(pv.getWinStart().toLocalDateTime()
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            newPv.setWinEnd(pv.getWinEnd().toLocalDateTime()
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            newPv.setPv(pv.getPv());
+            return newPv;
+        });
+
+        tEnv.registerDataStream("newRegionPv", newRegionPv, "region, winStart, winEnd, pv");
 
 //        tEnv.toRetractStream(table, RegionPv.class).print("");
 
@@ -464,7 +482,7 @@ public class SqlApiITCase extends AbstractTestBase {
      */
     public void testKafkaConnector() throws Exception {
 
-        Table regionPv = tEnv.scan("regionPv");
+        Table regionPv = tEnv.scan("newRegionPv");
 
         Kafka kafka = new Kafka()
                 .version("universal")
@@ -485,22 +503,61 @@ public class SqlApiITCase extends AbstractTestBase {
 //                .field("pv", DataTypes.BIGINT())
 //                .build();
 
+//        Json json = new Json()
+//                .failOnMissingField(true)
+//                .schema(
+//                        TableSchema.builder()
+//                                .field("region", DataTypes.STRING())
+//                                .field("winStart", DataTypes.TIMESTAMP())
+//                                .field("winEnd", DataTypes.TIMESTAMP())
+//                                .field("pv", DataTypes.BIGINT())
+//                                .build()
+//                                .toRowType()
+//                )
+//                .jsonSchema(
+//                        RichRowTypeInfo.bulider()
+//                                .field("region", Types.STRING(), "1")
+//                                .field("winStart", Types.SQL_TIMESTAMP(), "2")
+//                                .field("winEnd", Types.SQL_TIMESTAMP(), "3")
+//                                .field("pv", Types.LONG(), "4")
+//                                .build()
+//                                .toJsonSchema()
+//                );
+//
+//
+//        tEnv
+//                .connect(kafka)
+//                .withFormat(json)
+//                .withSchema(
+//                        new Schema()
+//                                .field("region", Types.STRING())
+//                                .field("winStart", Types.SQL_TIMESTAMP())
+////                                .rowtime(new Rowtime()
+////                                        .timestampsFromField("winStart")
+////                                        .watermarksPeriodicBounded(60000)
+////                                )
+//                                .field("winEnd", Types.SQL_TIMESTAMP())
+//                                .field("pv", Types.LONG())
+//                )
+//                .inAppendMode()
+//                .registerTableSink("KafkaRegionPvSinkTable");
+
         Json json = new Json()
                 .failOnMissingField(true)
                 .schema(
                         TableSchema.builder()
-                                .field("region", Types.STRING())
-                                .field("winStart", Types.SQL_TIMESTAMP())
-                                .field("winEnd", Types.SQL_TIMESTAMP())
-                                .field("pv", Types.LONG())
+                                .field("region", DataTypes.STRING())
+                                .field("winStart", DataTypes.STRING())
+                                .field("winEnd", DataTypes.STRING())
+                                .field("pv", DataTypes.BIGINT())
                                 .build()
                                 .toRowType()
                 )
                 .jsonSchema(
                         RichRowTypeInfo.bulider()
                                 .field("region", Types.STRING(), "1")
-                                .field("winStart", Types.SQL_TIMESTAMP(), "2")
-                                .field("winEnd", Types.SQL_TIMESTAMP(), "3")
+                                .field("winStart", Types.STRING(), "2")
+                                .field("winEnd", Types.STRING(), "3")
                                 .field("pv", Types.LONG(), "4")
                                 .build()
                                 .toJsonSchema()
@@ -513,12 +570,12 @@ public class SqlApiITCase extends AbstractTestBase {
                 .withSchema(
                         new Schema()
                                 .field("region", Types.STRING())
-                                .field("winStart", Types.SQL_TIMESTAMP())
+                                .field("winStart", Types.STRING())
 //                                .rowtime(new Rowtime()
 //                                        .timestampsFromField("winStart")
 //                                        .watermarksPeriodicBounded(60000)
 //                                )
-                                .field("winEnd", Types.SQL_TIMESTAMP())
+                                .field("winEnd", Types.STRING())
                                 .field("pv", Types.LONG())
                 )
                 .inAppendMode()
@@ -668,6 +725,27 @@ public class SqlApiITCase extends AbstractTestBase {
         private String region;
         private Timestamp winStart;
         private Timestamp winEnd;
+        private Long pv;
+    }
+//
+//    @Data
+//    @NoArgsConstructor
+//    @AllArgsConstructor
+//    public static class NewRegionPv {
+//        private String region;
+//        private LocalDateTime winStart;
+//        private LocalDateTime winEnd;
+//        private Long pv;
+//    }
+
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class NewRegionPv {
+        private String region;
+        private String winStart;
+        private String winEnd;
         private Long pv;
     }
 
