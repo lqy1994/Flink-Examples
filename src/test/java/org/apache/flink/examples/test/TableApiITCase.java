@@ -28,6 +28,7 @@ import org.junit.Test;
 import scala.Tuple2;
 import scala.Tuple3;
 import scala.Tuple4;
+import scala.collection.JavaConverters;
 import scala.collection.JavaConverters$;
 import scala.util.Either;
 
@@ -89,8 +90,8 @@ public class TableApiITCase extends AbstractTestBase {
         SeqHolder holder = new SeqHolder();
 
         // 客户表数据
-        SingleOutputStreamOperator customStream = env
-                .addSource(new EventModelSource<>(JavaConverters$.MODULE$.asJavaCollection(holder.customerData())))
+        SingleOutputStreamOperator<Customer> customStream = env
+                .addSource(new EventModelSource<>(JavaConverters.asJavaCollection(holder.customerData())))
                 .returns(TypeInformation.of(new TypeHint<Tuple3<String, String, String>>() {
                 }))
                 .map(new MapFunction<Tuple3<String, String, String>, Customer>() {
@@ -102,8 +103,8 @@ public class TableApiITCase extends AbstractTestBase {
         tEnv.registerDataStream(CUSTOMER_TAB, customStream, "cId, cName, cDesc");
         customerTable = tEnv.scan(CUSTOMER_TAB);
 
-        SingleOutputStreamOperator orderStream = env
-                .addSource(new EventModelSource(JavaConverters$.MODULE$.asJavaCollection(holder.orderData())))
+        SingleOutputStreamOperator<Order> orderStream = env
+                .addSource(new EventModelSource<Tuple4<String, String, String, String>>(JavaConverters.asJavaCollection(holder.orderData())))
                 .returns(TypeInformation.of(new TypeHint<Tuple4<String, String, String, String>>() {
                 }))
                 .map(new MapFunction<Tuple4<String, String, String, String>, Order>() {
@@ -117,7 +118,7 @@ public class TableApiITCase extends AbstractTestBase {
 
         //商品销售表数据
         DataStream<ItemData> itemStream = env
-                .addSource(new EventDataSource(JavaConverters$.MODULE$.asJavaCollection(holder.itemData())))
+                .addSource(new EventDataSource<>(JavaConverters.asJavaCollection(holder.itemData())))
                 .returns(TypeInformation.of(new TypeHint<Tuple4<Object, Object, String, String>>() {
                 }))
                 .map(new MapFunction<Tuple4<Object, Object, String, String>, ItemData>() {
@@ -131,9 +132,9 @@ public class TableApiITCase extends AbstractTestBase {
 
         //页面访问表
         Collection<Either<Tuple2<Object, Tuple3<Object, String, String>>, Object>> pageAccessData =
-                JavaConverters$.MODULE$.asJavaCollection(holder.pageAccessData());
-        SingleOutputStreamOperator pageAccessStream = env
-                .addSource(new EventDataSource(pageAccessData))
+                JavaConverters.asJavaCollection(holder.pageAccessData());
+        SingleOutputStreamOperator<PageAccess> pageAccessStream = env
+                .addSource(new EventDataSource<>(pageAccessData))
                 .returns(TypeInformation.of(new TypeHint<Tuple3<Object, String, String>>() {
                 }))
                 .map(new MapFunction<Tuple3<Object, String, String>, PageAccess>() {
@@ -147,9 +148,9 @@ public class TableApiITCase extends AbstractTestBase {
 
         //页面访问量表数据2
         Collection<Either<Tuple2<Object, Tuple3<Object, String, Object>>, Object>> pageAccessCount =
-                JavaConverters$.MODULE$.asJavaCollection(holder.pageAccessCountData());
-        SingleOutputStreamOperator pageAccessCountStream = env
-                .addSource(new EventDataSource(pageAccessCount))
+                JavaConverters.asJavaCollection(holder.pageAccessCountData());
+        SingleOutputStreamOperator<PageAccessCount> pageAccessCountStream = env
+                .addSource(new EventDataSource<>(pageAccessCount))
                 .returns(TypeInformation.of(new TypeHint<Tuple3<Object, String, Object>>() {
                 }))
                 .map(new MapFunction<Tuple3<Object, String, Object>, PageAccessCount>() {
@@ -163,9 +164,9 @@ public class TableApiITCase extends AbstractTestBase {
 
         //页面访问表数据3
         Collection<Either<Tuple2<Object, Tuple3<Object, String, String>>, Object>> pageAccessSession =
-                JavaConverters$.MODULE$.asJavaCollection(holder.pageAccessSessionData());
-        SingleOutputStreamOperator pageAccessSessionStream = env
-                .addSource(new EventDataSource(pageAccessSession))
+                JavaConverters.asJavaCollection(holder.pageAccessSessionData());
+        SingleOutputStreamOperator<PageAccessSession> pageAccessSessionStream = env
+                .addSource(new EventDataSource<>(pageAccessSession))
                 .returns(TypeInformation.of(new TypeHint<Tuple3<Object, String, String>>() {
                 }))
                 .map(new MapFunction<Tuple3<Object, String, String>, PageAccessSession>() {
