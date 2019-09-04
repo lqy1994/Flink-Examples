@@ -40,13 +40,9 @@ import scala.Tuple2;
 import scala.Tuple3;
 import scala.Tuple4;
 import scala.collection.JavaConverters;
-import scala.collection.JavaConverters$;
-import scala.collection.Seq;
-import scala.concurrent.JavaConversions;
 import scala.util.Either;
 
 import java.sql.Timestamp;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.HashMap;
@@ -166,8 +162,8 @@ public class SqlApiITCase extends AbstractTestBase {
     public void testSelect() throws Exception {
         Table table = tEnv.sqlQuery(
                 "SELECT c_name, " +
-                        "CONCAT(c_name, ' come ', c_desc) as desc " +
-                        "FROM customer_tab"
+                "CONCAT(c_name, ' come ', c_desc) as desc " +
+                "FROM customer_tab"
         );
 
         tEnv
@@ -190,11 +186,11 @@ public class SqlApiITCase extends AbstractTestBase {
     public void testWhere() throws Exception {
         Table table = tEnv.sqlQuery(
                 "SELECT c_id, " +
-                        "	c_name, " +
-                        "	c_desc " +
-                        "FROM customer_tab " +
-                        "WHERE c_id = 'c_001' " +
-                        "	OR c_id = 'c_003' "
+                 "	c_name, " +
+                 "	c_desc " +
+                 "FROM customer_tab " +
+                 "WHERE c_id = 'c_001' " +
+                 "	OR c_id = 'c_003' "
         );
         //SELECT c_id, c_name, c_desc FROM customer_tab WHERE c_id IN ('c_001', 'c_003')
         tEnv.toAppendStream(table, Row.class).print("");
@@ -209,9 +205,9 @@ public class SqlApiITCase extends AbstractTestBase {
     public void testGroupBy() throws Exception {
         Table table = tEnv.sqlQuery(
                 "SELECT c_id, " +
-                        "	count(o_id) AS o_count " +
-                        "FROM order_tab " +
-                        "GROUP BY c_id "
+                "	count(o_id) AS o_count " +
+                "FROM order_tab " +
+                "GROUP BY c_id "
         );
         tEnv.toRetractStream(table, Row.class).filter(t -> t.f0).print("");
 
@@ -219,9 +215,9 @@ public class SqlApiITCase extends AbstractTestBase {
 
         Table table1 = tEnv.sqlQuery(
                 "SELECT SUBSTRING(o_time, 1, 16) AS o_time_min, " +
-                        "	count(o_id) AS o_count " +
-                        "FROM order_tab " +
-                        "GROUP BY SUBSTRING(o_time, 1, 16)"
+                "	count(o_id) AS o_count " +
+                "FROM order_tab " +
+                "GROUP BY SUBSTRING(o_time, 1, 16)"
         );
 
         tEnv.toRetractStream(table1, Row.class).print("");
@@ -235,16 +231,16 @@ public class SqlApiITCase extends AbstractTestBase {
     public void testUnionAll() {
         Table table = tEnv.sqlQuery(
                 "SELECT c_id, c_name, c_desc  FROM customer_tab \n" +
-                        "UNION ALL \n" +
-                        "SELECT c_id, c_name, c_desc  FROM customer_tab "
+                "UNION ALL \n" +
+                "SELECT c_id, c_name, c_desc  FROM customer_tab "
         );
 
         tEnv.toRetractStream(table, Row.class).print("");
 
         Table table1 = tEnv.sqlQuery(
                 "SELECT c_id, c_name, c_desc  FROM customer_tab \n" +
-                        "UNION \n" +
-                        "SELECT c_id, c_name, c_desc  FROM customer_tab "
+                "UNION \n" +
+                "SELECT c_id, c_name, c_desc  FROM customer_tab "
         );
 
         tEnv.toRetractStream(table1, Row.class).print("UNION");
@@ -262,7 +258,7 @@ public class SqlApiITCase extends AbstractTestBase {
         //SELECT * FROM customer_tab AS c JOIN order_tab AS o ON o.c_id = c.c_id
         Table joinResult = tEnv.sqlQuery(
                 "SELECT *" +
-                        "FROM customer_tab AS c JOIN order_tab AS o ON o.c_id = c.c_id "
+                "FROM customer_tab AS c JOIN order_tab AS o ON o.c_id = c.c_id "
         );
 
 //		tEnv.toAppendStream(joinResult, Row.class).print("");
@@ -296,15 +292,15 @@ public class SqlApiITCase extends AbstractTestBase {
         //我们统计同类商品中当前和当前商品之前2个商品中的最高价格。
         Table table = tEnv.sqlQuery(
                 "SELECT  \n" +
-                        "    itemID,\n" +
-                        "    itemType, \n" +
-                        "    onSellTime, \n" +
-                        "    price,  \n" +
-                        "    MAX(price) OVER (\n" +
-                        "        PARTITION BY itemType \n" +
-                        "        ORDER BY onSellTime \n" +
-                        "        ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS maxPrice\n" +
-                        "FROM item_tab"
+                "    itemID,\n" +
+                "    itemType, \n" +
+                "    onSellTime, \n" +
+                "    price,  \n" +
+                "    MAX(price) OVER (\n" +
+                "        PARTITION BY itemType \n" +
+                "        ORDER BY onSellTime \n" +
+                "        ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS maxPrice\n" +
+                "FROM item_tab"
         );
 
         tEnv.toRetractStream(table, MaxPriceItem.class).print("");
@@ -327,16 +323,16 @@ public class SqlApiITCase extends AbstractTestBase {
         //我们统计同类商品中当前和当前商品之前2分钟商品中的最高价格。
         Table table = tEnv.sqlQuery(
                 "SELECT \n" +
-                        "    itemID,\n" +
-                        "    itemType, \n" +
-                        "    onSellTime, \n" +
-                        "    price,  \n" +
-                        "    MAX(price) OVER (\n" +
-                        "    	PARTITION BY itemType \n" +
-                        "    	ORDER BY onSellTime \n" +
-                        "    	RANGE \n" +
-                        "    	BETWEEN INTERVAL '2' MINUTE PRECEDING AND CURRENT ROW) AS maxPrice\n" +
-                        "FROM item_tab"
+                "    itemID,\n" +
+                "    itemType, \n" +
+                "    onSellTime, \n" +
+                "    price,  \n" +
+                "    MAX(price) OVER (\n" +
+                "    	PARTITION BY itemType \n" +
+                "    	ORDER BY onSellTime \n" +
+                "    	RANGE \n" +
+                "    	BETWEEN INTERVAL '2' MINUTE PRECEDING AND CURRENT ROW) AS maxPrice\n" +
+                "FROM item_tab"
         );
 
         tEnv.toRetractStream(table, MaxPriceItem.class).print("");
@@ -362,12 +358,12 @@ public class SqlApiITCase extends AbstractTestBase {
         //利用pageAccess_tab测试数据，按不同地域统计每5分钟的淘宝首页的访问量(PV)。
         Table table = tEnv.sqlQuery(
                 "SELECT \n" +
-                        "    region,\n" +
-                        "    TUMBLE_START(accessTime, INTERVAL '5' MINUTE) AS winStart, \n" +
-                        "    TUMBLE_END  (accessTime, INTERVAL '5' MINUTE) AS winEnd, \n" +
-                        "    COUNT(region) AS pv  \n" +
-                        "FROM pageAccess_tab \n" +
-                        "GROUP BY region, TUMBLE(accessTime, INTERVAL '5' MINUTE) \n"
+                "    region,\n" +
+                "    TUMBLE_START(accessTime, INTERVAL '5' MINUTE) AS winStart, \n" +
+                "    TUMBLE_END  (accessTime, INTERVAL '5' MINUTE) AS winEnd, \n" +
+                "    COUNT(region) AS pv  \n" +
+                "FROM pageAccess_tab \n" +
+                "GROUP BY region, TUMBLE(accessTime, INTERVAL '5' MINUTE) \n"
         );
 
         SingleOutputStreamOperator<RegionPv> regionPv = tEnv
@@ -437,11 +433,11 @@ public class SqlApiITCase extends AbstractTestBase {
         //利用pageAccessCount_tab测试数据，我们需要每5分钟统计近10分钟的页面访问量(PV).
         Table table = tEnv.sqlQuery(
                 "SELECT \n" +
-                        "    HOP_START(accessTime, INTERVAL '5' MINUTE, INTERVAL '10' MINUTE) AS winStart, \n" +
-                        "    HOP_END  (accessTime, INTERVAL '5' MINUTE, INTERVAL '10' MINUTE) AS winEnd, \n" +
-                        "     SUM(accessCount) AS accessCount \n" +
-                        "FROM pageAccessCount_tab \n" +
-                        "GROUP BY HOP(accessTime, INTERVAL '5' MINUTE, INTERVAL '10' MINUTE) \n"
+                "    HOP_START(accessTime, INTERVAL '5' MINUTE, INTERVAL '10' MINUTE) AS winStart, \n" +
+                "    HOP_END  (accessTime, INTERVAL '5' MINUTE, INTERVAL '10' MINUTE) AS winEnd, \n" +
+                "    SUM(accessCount) AS accessCount \n" +
+                "FROM pageAccessCount_tab \n" +
+                "GROUP BY HOP(accessTime, INTERVAL '5' MINUTE, INTERVAL '10' MINUTE) \n"
         );
 
         tEnv.toRetractStream(table, AccessCountSum.class).print("");
@@ -465,12 +461,12 @@ public class SqlApiITCase extends AbstractTestBase {
         //利用pageAccessSession_tab测试数据，我们按地域统计连续的两个访问用户之间的访问时间间隔不超过3分钟的的页面访问量(PV).
         Table table = tEnv.sqlQuery(
                 "SELECT  \n" +
-                        "    region, \n" +
-                        "    SESSION_START(accessTime, INTERVAL '3' MINUTE) AS winStart,  \n" +
-                        "    SESSION_END(accessTime, INTERVAL '3' MINUTE) AS winEnd, \n" +
-                        "    COUNT(region) AS pv  \n" +
-                        "FROM pageAccessSession_tab\n" +
-                        "GROUP BY region, SESSION(accessTime, INTERVAL '3' MINUTE)"
+                "    region, \n" +
+                "    SESSION_START(accessTime, INTERVAL '3' MINUTE) AS winStart,  \n" +
+                "    SESSION_END  (accessTime, INTERVAL '3' MINUTE) AS winEnd, \n" +
+                "    COUNT(region) AS pv  \n" +
+                "FROM pageAccessSession_tab\n" +
+                "GROUP BY region, SESSION(accessTime, INTERVAL '3' MINUTE)"
         );
 
         tEnv.toRetractStream(table, RegionPv.class).print("");
@@ -696,8 +692,8 @@ public class SqlApiITCase extends AbstractTestBase {
         tEnv.registerFunction("MyConCat", new MyConCat());
         Table table = tEnv.sqlQuery(
                 "SELECT  \n" +
-                        "    MyConCat(c_name, c_desc) \n" +
-                        "FROM customer_tab\n"
+                "    MyConCat(c_name, c_desc) \n" +
+                "FROM customer_tab\n"
         );
 
         tEnv.toRetractStream(table, Row.class).print("");
