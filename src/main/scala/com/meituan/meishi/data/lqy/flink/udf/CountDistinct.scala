@@ -10,10 +10,10 @@ import org.apache.flink.table.functions.AggregateFunction
 
 class CountDistinctAccum {
   var map: MapView[String, Integer] = _
-  var count: Long = _
+  var count: JLong = _
 }
 
-class CountDistinct extends AggregateFunction[Long, CountDistinctAccum] {
+class CountDistinct extends AggregateFunction[JLong, CountDistinctAccum] {
 
   override def createAccumulator(): CountDistinctAccum = {
     val acc = new CountDistinctAccum
@@ -37,7 +37,7 @@ class CountDistinct extends AggregateFunction[Long, CountDistinctAccum] {
     }
   }
 
-  def accumulate(acc: CountDistinctAccum, id: Long): Unit = {
+  def accumulate(acc: CountDistinctAccum, id: JLong): Unit = {
     try {
       var cnt: Integer = acc.map.get(String.valueOf(id))
       if (cnt != null) {
@@ -52,7 +52,7 @@ class CountDistinct extends AggregateFunction[Long, CountDistinctAccum] {
     }
   }
 
-  override def getValue(accumulator: CountDistinctAccum): Long =
+  override def getValue(accumulator: CountDistinctAccum): JLong =
     accumulator.count
 
 }
@@ -94,7 +94,7 @@ class CountDistinctWithMerge extends CountDistinct {
  */
 class CountDistinctWithRetractAndReset extends CountDistinct {
 
-  def retract(acc: CountDistinctAccum, id: Long): Unit = {
+  def retract(acc: CountDistinctAccum, id: JLong): Unit = {
     try {
       var cnt: Integer = acc.map.get(String.valueOf(id))
       if (cnt != null) {

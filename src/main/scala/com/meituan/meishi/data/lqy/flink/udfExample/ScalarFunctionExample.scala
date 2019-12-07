@@ -1,4 +1,4 @@
-package com.meituan.meishi.data.lqy.flink.udfs
+package com.meituan.meishi.data.lqy.flink.udfExample
 
 import org.apache.flink.api.scala._
 import org.apache.flink.table.api.scala._

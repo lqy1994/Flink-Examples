@@ -5,8 +5,8 @@ import java.lang.{Long => JLong}
 import org.apache.flink.table.functions.AggregateFunction
 
 class WeightedAvgAccum {
-  var sum: Long = 0L
-  var count: Int = 0
+  var sum: JLong = 0L
+  var count: Integer = 0
 }
 
 class WeightedAvg extends AggregateFunction[JLong, WeightedAvgAccum] {
@@ -23,18 +23,18 @@ class WeightedAvg extends AggregateFunction[JLong, WeightedAvgAccum] {
     }
   }
 
-  def accumulate(accumulator: WeightedAvgAccum, value: Long, weight: Int,
-                 x: Int, string: String): Unit = {
+  def accumulate(accumulator: WeightedAvgAccum, value: JLong, weight: Integer,
+                 x: Integer, string: String): Unit = {
     accumulator.sum += (value + string.toInt) * weight
     accumulator.count += weight
   }
 
-  def accumulate(accumulator: WeightedAvgAccum, value: Long, weight: Int): Unit = {
+  def accumulate(accumulator: WeightedAvgAccum, value: JLong, weight: Integer): Unit = {
     accumulator.sum += value * weight
     accumulator.count += weight
   }
 
-  def accumulate(accumulator: WeightedAvgAccum, value: Int, weight: Int): Unit = {
+  def accumulate(accumulator: WeightedAvgAccum, value: Integer, weight: Integer): Unit = {
     accumulator.sum += value * weight
     accumulator.count += weight
   }
@@ -62,12 +62,12 @@ class WeightedAvgWithMergeAndReset extends WeightedAvgWithMerge {
 }
 
 class WeightedAvgWithRetract extends WeightedAvg {
-  def retract(accumulator: WeightedAvgAccum, value: Long, weight: Int): Unit = {
+  def retract(accumulator: WeightedAvgAccum, value: JLong, weight: Integer): Unit = {
     accumulator.sum -= value * weight
     accumulator.count -= weight
   }
 
-  def retract(accumulator: WeightedAvgAccum, value: Int, weight: Int): Unit = {
+  def retract(accumulator: WeightedAvgAccum, value: Integer, weight: Integer): Unit = {
     accumulator.sum -= value * weight
     accumulator.count -= weight
   }

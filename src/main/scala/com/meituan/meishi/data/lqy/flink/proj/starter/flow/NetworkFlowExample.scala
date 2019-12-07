@@ -33,7 +33,7 @@ object NetworkFlowExample {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(1)
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
-    val settings = new EnvironmentSettings.Builder().useOldPlanner().inStreamingMode().build()
+    val settings = new EnvironmentSettings.Builder().useBlinkPlanner().inStreamingMode().build()
     val tableEnv = StreamTableEnvironment.create(env, settings)
     val catalog = new GenericInMemoryCatalog("default")
     tableEnv.registerCatalog("default", catalog)
@@ -49,6 +49,8 @@ object NetworkFlowExample {
         override def extractTimestamp(element: ApacheLogEvent): Long = element.eventTime
       })
 
+    tableEnv.registerDataStream[ApacheLogEvent]("log_tab", dataStream, 'ip, 'userId, 'eventTime.rowtime, 'method, 'url)
+
     val hotStream = dataStream.keyBy(_.url)
       .timeWindow(Time.minutes(10), Time.seconds(5))
       //      .allowedLateness(Time.seconds(60)) // 允许60s的延迟数据
@@ -61,20 +63,47 @@ object NetworkFlowExample {
       //      .window(Slide.over(10.minutes).every(5.seconds).on('eventTime).as('win))
       .window(Slide over 10.minutes every 5.seconds on 'eventTime as 'win)
       .groupBy('url, 'win)
-      .select('url, 'win.end as 'windowEnd, 'url.count as 'count)
+      .select('url, 'win.end as 'windowEnd, 'url.count as 'cnt)
+//    val urlViewCountStream = tableEnv
+//      .toRetractStream[(String, Timestamp, Long)](slideTable)
+//      .map(_._2)
+//      .map(t => UrlViewCount(t._1, t._2.getTime, t._3))
+//    val topAgg = new TopAggFunc
+//    tableEnv.registerFunction("topAgg", topAgg)
+//    val resTable = slideTable.groupBy('windowEnd)
+//      .flatAggregate(topAgg('url) as('a, 'b))
+//      .select('windowEnd, 'a, 'b)
+//    tableEnv.toRetractStream[Row](resTable).filter(_._1).map(_._2).print("row")
 
-    val urlViewCountStream = tableEnv
-      .toRetractStream[(String, Timestamp, Long)](slideTable)
-      .map(_._2)
-      .map(t => UrlViewCount(t._1, t._2.getTime, t._3))
+    val winTable = tableEnv.sqlQuery(
+      """
+        |SELECT
+        | url,
+        | HOP_END(eventTime, INTERVAL '5' SECOND, INTERVAL '10' MINUTE) AS windowEnd,
+        | COUNT(url) AS cnt
+        |FROM log_tab
+        |GROUP BY HOP(eventTime, INTERVAL '5' SECOND, INTERVAL '10' MINUTE), url
+        |""".stripMargin)
+    // tableEnv.toRetractStream[Row](winTable).filter(_._1).map(_._2).print("row")
 
-    val topAgg = new TopAggFunc
-    tableEnv.registerFunction("topAgg", topAgg)
-    val resTable = slideTable.groupBy('windowEnd)
-      .flatAggregate(topAgg('url) as('a, 'b))
-      .select('windowEnd, 'a, 'b)
-
-    tableEnv.toRetractStream[Row](resTable).filter(_._1).map(_._2).print("row")
+    tableEnv.registerTable("slideTable", winTable)
+    // url, windowEnd, cnt
+    val sqlTable = tableEnv.sqlQuery(
+      """
+        |SELECT
+        | windowEnd, url, sum_cnt
+        |FROM
+        | (SELECT
+        |   windowEnd, url, SUM(cnt) AS sum_cnt,
+        |   ROW_NUMBER() OVER (
+        |   PARTITION BY windowEnd
+        |   ORDER BY SUM(cnt) DESC) AS rowNum
+        |  FROM slideTable
+        |  GROUP BY windowEnd, url
+        |  HAVING SUM(cnt) > 5)
+        |WHERE rowNum<= 1
+        |""".stripMargin)
+    tableEnv.toRetractStream[Row](sqlTable).filter(_._1).map(_._2).print("sql")
 
     env.execute("Network Flow")
   }

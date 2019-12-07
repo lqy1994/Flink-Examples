@@ -1,16 +1,17 @@
-package org.apache.flink.examples.test.udf
+package org.apache.flink.examples.test.udf.table
 
 import java.math.BigDecimal
 
+import com.meituan.meishi.data.lqy.flink.sink.{StreamITCase, StringSink}
 import com.meituan.meishi.data.lqy.flink.udf.{CountDistinct, WeightedAvg}
-import org.apache.flink.examples.test.udf.GroupWindowITCase.TimestampAndWatermarkWithOffset
+import org.apache.flink.examples.test.udf.table.GroupWindowITCase.TimestampAndWatermarkWithOffset
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.watermark.Watermark
-import org.apache.flink.table.api.{Slide, Tumble}
 import org.apache.flink.table.api.scala._
+import org.apache.flink.table.api.{Slide, Tumble}
 import org.apache.flink.table.functions.aggfunctions.CountAggFunction
 import org.apache.flink.types.Row
 import org.junit.Assert.assertEquals
@@ -20,9 +21,6 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 class GroupWindowITCase extends Serializable {
-
-  var testResults: mutable.MutableList[String] = mutable.MutableList.empty[String]
-  var retractedResults: ArrayBuffer[String] = mutable.ArrayBuffer.empty[String]
 
   val data = List(
     (1L, 1, "Hi"),
@@ -46,7 +44,7 @@ class GroupWindowITCase extends Serializable {
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
     env.setParallelism(1)
     val tEnv = StreamTableEnvironment.create(env)
-    testResults = mutable.MutableList()
+    StreamITCase.testResults.clear()
 
     val stream = env.fromCollection(data)
       .assignTimestampsAndWatermarks(new TimestampAndWatermarkWithOffset[(Long, Int, String)](0L))
@@ -66,9 +64,15 @@ class GroupWindowITCase extends Serializable {
         countDistinct('long))
 
     val results = windowedTable.toAppendStream[Row]
-    results.print("result")
+    results.addSink(new StringSink[Row])
+    env.execute()
 
-    env.execute("testEventTimeTumblingWindow")
+    val expected = Seq(
+      "Hello world,1,3,8,3,3,3,3,1970-01-01 00:00:00.005,1970-01-01 00:00:00.01,1",
+      "Hello world,1,3,16,3,3,3,3,1970-01-01 00:00:00.015,1970-01-01 00:00:00.02,1",
+      "Hello,2,2,3,2,2,2,4,1970-01-01 00:00:00.0,1970-01-01 00:00:00.005,2",
+      "Hi,1,1,1,1,1,1,1,1970-01-01 00:00:00.0,1970-01-01 00:00:00.005,1")
+    assertEquals(expected.sorted, StreamITCase.testResults.sorted)
   }
 
   @Test def testGroupWindowWithoutKeyInProjection(): Unit = {
@@ -82,7 +86,7 @@ class GroupWindowITCase extends Serializable {
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setParallelism(1)
     val tEnv = StreamTableEnvironment.create(env)
-    testResults = mutable.MutableList()
+    StreamITCase.testResults = mutable.MutableList()
 
     val stream = env.fromCollection(data)
     val table = stream.toTable(tEnv, 'long, 'int, 'string, 'int2, 'int3, 'proctime.proctime)
@@ -104,14 +108,6 @@ class GroupWindowITCase extends Serializable {
 //    assertEquals(expected.sorted, testResults.sorted)
   }
 
-  final class StringSink[T] extends RichSinkFunction[T]() {
-    override def invoke(value: T) {
-      testResults.synchronized {
-        testResults += value.toString
-      }
-    }
-  }
-
 }
 
 object GroupWindowITCase {
@@ -129,8 +125,5 @@ object GroupWindowITCase {
       element.productElement(0).asInstanceOf[Number].longValue()
     }
   }
-
-
-
 
 }

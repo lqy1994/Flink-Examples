@@ -1,4 +1,4 @@
-package com.meituan.meishi.data.lqy.flink.udfs
+package com.meituan.meishi.data.lqy.flink.udfExample
 
 import org.apache.flink.api.scala._
 import org.apache.flink.table.api.scala._
@@ -22,7 +22,7 @@ object TableFunctionExample extends App {
     , 'elem)
   tableEnv.registerTable("myTable", table)
 
-  table.joinLateral(split('elem) as ('word, 'len))
+  table.joinLateral(split('elem) as('word, 'len))
     .select('elem, 'word, 'len)
     .toDataSet[Row].print("table")
 

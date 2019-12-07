@@ -1,10 +1,9 @@
-package com.meituan.meishi.data.lqy.flink.udfs
-
-import java.lang.{Integer => JInteger}
+package com.meituan.meishi.data.lqy.flink.udfExample
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.tuple.{Tuple, Tuple1 => JTuple1}
 import org.apache.flink.api.java.typeutils.{RowTypeInfo, TupleTypeInfo}
+import org.apache.flink.api.scala.ExecutionEnvironment
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.Types
@@ -20,15 +19,14 @@ import scala.collection.mutable
  * 多行转一行， 聚合函数 agg
  */
 object AggregateFunctionExample extends App {
-  val env = StreamExecutionEnvironment.getExecutionEnvironment
-  val tEnv = StreamTableEnvironment.create(env)
+  val env = ExecutionEnvironment.getExecutionEnvironment
+  val tEnv = BatchTableEnvironment.create(env)
   env.setParallelism(1)
-  env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
 
   val weiAgg = new WeightedAgg
   tEnv.registerFunction("wAvg", weiAgg)
 
-  val data = new mutable.MutableList[(JInteger, JInteger, String)]
+  val data = new mutable.MutableList[(Int, Int, String)]
   data.+=((1, 1, "A"))
   data.+=((2, 2, "B"))
   data.+=((2, 2, "B"))
@@ -54,7 +52,7 @@ object AggregateFunctionExample extends App {
       weiAgg('a, 'b)
     )
 
-  aggTable.toRetractStream[Row].filter(_._1).map(_._2).print("agg")
+  aggTable.toDataSet[Row].print("agg")
 
   env.execute("Table Agg Func")
 }
@@ -64,25 +62,25 @@ class WeightedAvgAcc {
   var count = 0
 }
 
-class WeightedAgg extends AggregateFunction[JInteger, WeightedAvgAcc] {
+class WeightedAgg extends AggregateFunction[Int, WeightedAvgAcc] {
   override def createAccumulator(): WeightedAvgAcc = {
     new WeightedAvgAcc
   }
 
-  override def getValue(accumulator: WeightedAvgAcc): JInteger = {
+  override def getValue(accumulator: WeightedAvgAcc): Int = {
     if (accumulator.count == 0) {
-      null
+      0
     } else {
       accumulator.sum / accumulator.count
     }
   }
 
-  def accumulate(acc: WeightedAvgAcc, iValue: JInteger, iWeight: JInteger): Unit = {
+  def accumulate(acc: WeightedAvgAcc, iValue: Int, iWeight: Int): Unit = {
     acc.sum += iValue * iWeight
     acc.count += iWeight
   }
 
-  def retract(acc: WeightedAvgAcc, iValue: JInteger, iWeight: JInteger): Unit = {
+  def retract(acc: WeightedAvgAcc, iValue: Int, iWeight: Int): Unit = {
     acc.sum -= iValue * iWeight
     acc.count -= iWeight
   }
