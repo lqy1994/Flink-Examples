@@ -30,3 +30,5 @@ pom.xml.versionsBackup
 
 rebel.xml
 *.log
+src/main/resources/state/
+src/main/resources/table.table3/

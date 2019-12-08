@@ -1,0 +1,13 @@
+c a b   a.count.distinct a.sum.distinct
+------
+A 1 1   2 5   sum:1 count:1 sum:5 count:5 sum:9 count:6 => weiAgg.distinct('a, 'b): 1   =====> 2 5 1 1 1
+A 1 4         sum:1 count:1 sum:5 count:2 sum:6 count:6 => weiAgg.distinct('b, 'a): 1
+A 4 1                                                      weiAgg('a, 'b): 1
+B 2 2   3 12  sum:31 count:7 => 4 =====> 3 12 4 2 3
+B 2 2         sum:31 count:12=> 2
+B 7 3         sum:35 count:9 => 3
+B 3 2
+C 4 3   2 9
+C 5 3
+C 4 3
+D 9 4   1 9
