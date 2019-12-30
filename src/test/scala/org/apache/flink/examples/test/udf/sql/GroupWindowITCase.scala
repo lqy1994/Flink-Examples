@@ -2,13 +2,16 @@ package org.apache.flink.examples.test.udf.sql
 
 import java.math.BigDecimal
 
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.meituan.meishi.data.lqy.flink.sink.{StreamITCase, StringSink}
 import com.meituan.meishi.data.lqy.flink.source.EventTimeSourceFunction
-import org.apache.flink.api.common.typeinfo.{BasicTypeInfo, TypeInformation}
+import org.apache.flink.api.common.typeinfo.{BasicTypeInfo, TypeInformation, Types}
 import org.apache.flink.api.java.typeutils.RowTypeInfo
 import org.apache.flink.examples.test.base.AbstractTestBase
 import org.apache.flink.examples.test.data.StreamTestData
 import org.apache.flink.examples.test.udf.table.GroupWindowITCase.TimestampAndWatermarkWithOffset
+import org.apache.flink.formats.json.JsonRowSerializationSchema
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.table.api.scala._
@@ -19,6 +22,8 @@ import org.junit.Test
 import scala.collection.mutable
 
 class GroupWindowITCase extends AbstractTestBase {
+
+  val gson: Gson = new Gson()
 
   @Test
   def testEventTimeSlidingGroupWindowOverTimeOverlappingFullPane(): Unit = {
@@ -41,15 +46,15 @@ class GroupWindowITCase extends AbstractTestBase {
 
       (32000L, 4, 4d, 4f, new BigDecimal("4"), null.asInstanceOf[String]))
     val stream =
-//      env.socketTextStream("localhost", 9672)
-//        .map(line => {
-//          val split = line.split(",")
-//          (split(0).trim.toLong, split(1).trim.toInt, split(2).trim.toDouble,
-//            split(3).trim.toFloat, new BigDecimal(split(4).trim.toDouble), split(5).trim)
-//        })
-          env.fromCollection(data2)
-      .assignTimestampsAndWatermarks(
-        new TimestampAndWatermarkWithOffset[(Long, Int, Double, Float, BigDecimal, String)](0L))
+    //      env.socketTextStream("localhost", 9672)
+    //        .map(line => {
+    //          val split = line.split(",")
+    //          (split(0).trim.toLong, split(1).trim.toInt, split(2).trim.toDouble,
+    //            split(3).trim.toFloat, new BigDecimal(split(4).trim.toDouble), split(5).trim)
+    //        })
+      env.fromCollection(data2)
+        .assignTimestampsAndWatermarks(
+          new TimestampAndWatermarkWithOffset[(Long, Int, Double, Float, BigDecimal, String)](0L))
     val table = stream.toTable(tEnv, 'long1.rowtime, 'int1, 'double1, 'float1, 'bigdec1, 'string1)
     tEnv.registerTable("T", table)
     val windowedTable = tEnv.sqlQuery(
@@ -112,7 +117,7 @@ class GroupWindowITCase extends AbstractTestBase {
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
     val tEnv = StreamTableEnvironment.create(env)
     StreamITCase.testResults = mutable.MutableList()
-    StreamITCase.clear
+    StreamITCase.clear()
     env.setParallelism(1)
 
     val data = List(
@@ -224,6 +229,64 @@ class GroupWindowITCase extends AbstractTestBase {
       "Hello,2,1970-01-01 03:53:00.0,1970-01-01 03:54:00.0"
     )
     assertEquals(expected.sorted, StreamITCase.testResults.sorted)
+  }
+
+  @Test
+  def testAgg(): Unit = {
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+    val tEnv = StreamTableEnvironment.create(env)
+    val t = env.socketTextStream("localhost", 7777)
+      .map(s => {
+        val arr = s.split(",")
+        (arr(0).trim, arr(1).trim.toLong, arr(2).trim.toInt, new BigDecimal(arr(3).toDouble))
+      })
+      .assignAscendingTimestamps(x => x._2)
+      .toTable(tEnv, 'a, 'b, 'c, 'd, 'rowtime.rowtime)
+    tEnv.registerTable("T", t)
+    val results = tEnv.sqlQuery(
+      """
+        |SELECT
+        | a AS key,
+        | COUNT(1) AS cnt,
+        | SUM(d) AS sum_cnt
+        |FROM T
+        |GROUP BY a
+        |""".stripMargin).toRetractStream[Row]
+    results.print("")
+    results.filter(_._1).map(_._2)
+      .writeToSocket("localhost", 8888,
+        new JsonRowSerializationSchema.Builder(Types.ROW_NAMED(
+          Array[String]("key", "cnt", "sum_cnt"),
+          Types.STRING, Types.LONG
+
+          , Types.BIG_DEC)).build())
+    env.execute()
+  }
+
+  @Test
+  def testAgg1(): Unit = {
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+    val tEnv = StreamTableEnvironment.create(env)
+    val t = env.socketTextStream("localhost", 8888)
+      .map(s => {
+        val t = gson.fromJson(s, new TypeToken[(String, Long, BigDecimal)]() {}.getType)
+        t.asInstanceOf[(String, Long, BigDecimal)]
+      })
+      .assignAscendingTimestamps(x => x._2)
+      .toTable(tEnv, 'key, 'cnt, 'sum_cnt, 'rowtime.rowtime)
+    tEnv.registerTable("T", t)
+    val results = tEnv.sqlQuery(
+      """
+        |SELECT
+        | key,
+        | cnt,
+        | sum_cnt
+        |FROM T
+        |""".stripMargin).toRetractStream[Row]
+    results.print("")
+    env.execute()
   }
 
 }
